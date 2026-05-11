@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SubTracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F7F5;--surface:#FFF;--border:#EBEBEB;--text:#1A1A1A;--muted:#888;
+  --accent:#4F46E5;--accent-light:#EEF2FF;
+  --warn:#F59E0B;--warn-light:#FFFBEB;
+  --danger:#EF4444;--danger-light:#FEF2F2;
+  --success:#10B981;--success-light:#ECFDF5;
+  --cancelled:#9CA3AF;--cancelled-light:#F9FAFB;
+  --trial:#8B5CF6;--trial-light:#F5F3FF;
+  --paused:#3B82F6;--paused-light:#EFF6FF;
+  --premium:#F59E0B;
+  --radius:16px;--radius-sm:10px;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#111;--surface:#1C1C1E;--border:#2C2C2E;--text:#F5F5F5;--muted:#888;--accent-light:#1e1b4b;--warn-light:#1f1a00;--danger-light:#2d0000;--success-light:#001f15;--cancelled-light:#1c1c1e;--trial-light:#1e1234;--paused-light:#0c1a2e;}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;max-width:390px;margin:0 auto;overflow-x:hidden}
+.screen{display:none;flex-direction:column;min-height:100vh;padding-bottom:90px}
+.screen.active{display:flex}
+.header{padding:52px 20px 16px;background:var(--bg);position:sticky;top:0;z-index:10}
+.header h1{font-size:28px;font-weight:700;letter-spacing:-0.5px}
+.header p{color:var(--muted);font-size:14px;margin-top:2px}
+.header-row{display:flex;align-items:center;justify-content:space-between}
+.back-btn{background:none;border:none;cursor:pointer;font-size:15px;color:var(--accent);font-weight:500;display:flex;align-items:center;gap:4px;padding:0}
+.back-btn svg{width:18px;height:18px}
+
+/* SUMMARY */
+.summary-strip{display:flex;gap:10px;padding:0 20px 16px;overflow-x:auto}
+.summary-card{flex:0 0 auto;min-width:80px;background:var(--surface);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border)}
+.summary-card .val{font-size:20px;font-weight:700}
+.summary-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:0.4px}
+
+/* INSIGHT CARDS */
+.insights{display:flex;gap:10px;padding:0 20px 16px;overflow-x:auto}
+.insight-card{flex:0 0 auto;min-width:140px;background:var(--surface);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)}
+.insight-card .i-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.insight-card .i-val{font-size:14px;font-weight:700}
+.insight-card .i-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* LIST */
+.sub-list{padding:0 20px;display:flex;flex-direction:column;gap:12px}
+.section-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+.sub-card{background:var(--surface);border-radius:var(--radius);padding:16px;border:1px solid var(--border);cursor:pointer;transition:transform .15s,box-shadow .15s;display:flex;align-items:center;gap:14px}
+.sub-card:active{transform:scale(0.98)}
+.sub-card.expiring{border-color:#FCD34D;background:var(--warn-light)}
+.sub-card.expired{border-color:#FCA5A5;background:var(--danger-light)}
+.sub-card.cancelled{opacity:.55}
+.sub-card.trial{border-color:#C4B5FD;background:var(--trial-light)}
+.sub-card.paused{border-color:#93C5FD;background:var(--paused-light)}
+.sub-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.sub-info{flex:1;min-width:0}
+.sub-name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub-price{font-size:13px;color:var(--muted);margin-top:2px}
+.sub-right{text-align:right;flex-shrink:0}
+.days-badge{font-size:13px;font-weight:700;padding:4px 9px;border-radius:20px;display:inline-block}
+.badge-active{background:var(--accent-light);color:var(--accent)}
+.badge-expiring{background:#FEF3C7;color:#D97706}
+.badge-expired{background:var(--danger-light);color:var(--danger)}
+.badge-cancelled{background:var(--cancelled-light);color:var(--cancelled)}
+.badge-trial{background:var(--trial-light);color:var(--trial)}
+.badge-paused{background:var(--paused-light);color:var(--paused)}
+.sub-status{font-size:11px;color:var(--muted);margin-top:3px;text-align:right}
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty .emoji{font-size:40px;margin-bottom:12px}
+
+/* PREMIUM BANNER */
+.premium-banner{margin:0 20px 16px;background:linear-gradient(135deg,#F59E0B,#D97706);border-radius:var(--radius-sm);padding:14px 16px;color:#fff;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.premium-banner .pb-text{font-size:13px;font-weight:700}
+.premium-banner .pb-sub{font-size:11px;opacity:.85;margin-top:2px}
+.premium-banner .pb-btn{background:rgba(255,255,255,.25);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.premium-badge{background:#F59E0B;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+
+/* FAB */
+.fab{position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:28px;box-shadow:0 4px 20px rgba(79,70,229,.35);display:flex;align-items:center;justify-content:center;transition:transform .15s;z-index:50}
+.fab:active{transform:scale(0.93)}
+
+/* DETAIL */
+.detail-hero{margin:0 20px 20px;background:var(--surface);border-radius:var(--radius);padding:24px 20px;border:1px solid var(--border);text-align:center}
+.detail-icon{width:64px;height:64px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 12px}
+.detail-name{font-size:22px;font-weight:700}
+.detail-price{font-size:16px;color:var(--muted);margin-top:4px}
+.countdown-ring{margin:16px auto 0;width:100px;height:100px;position:relative}
+.countdown-ring svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--border);stroke-width:6}
+.ring-fill{fill:none;stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.countdown-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.countdown-label .num{font-size:22px;font-weight:800}
+.countdown-label .unit{font-size:10px;color:var(--muted);display:block}
+.detail-rows{margin:0 20px 20px;display:flex;flex-direction:column;gap:10px}
+.detail-row{background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+.detail-row .lbl{font-size:14px;color:var(--muted)}
+.detail-row .val{font-size:14px;font-weight:600}
+.action-btns{padding:0 20px;display:flex;flex-direction:column;gap:10px}
+.btn{width:100%;padding:16px;border-radius:var(--radius-sm);border:none;font-size:16px;font-weight:600;cursor:pointer;transition:transform .12s,opacity .12s}
+.btn:active{transform:scale(0.98);opacity:.85}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-warn{background:var(--warn-light);color:#92400E}
+.btn-cancel{background:var(--danger-light);color:var(--danger)}
+.btn-delete{background:#FEE2E2;color:#991B1B}
+.btn-secondary{background:var(--border);color:var(--text)}
+.btn-premium{background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--muted)}
+
+/* FORM */
+.form-wrap{padding:0 20px;display:flex;flex-direction:column;gap:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px}
+.field input,.field select,.field textarea{width:100%;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:var(--text);outline:none;transition:border-color .15s;appearance:none;-webkit-appearance:none;font-family:inherit}
+.field textarea{resize:vertical;min-height:80px}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.emoji-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.emoji-opt{width:42px;height:42px;border-radius:10px;border:2px solid transparent;background:var(--surface);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .1s,background .1s}
+.emoji-opt.selected{border-color:var(--accent);background:var(--accent-light)}
+.color-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.color-opt{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:border-color .1s}
+.color-opt.selected{border-color:var(--text)}
+.autocomplete-wrap{position:relative}
+.suggestions{position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.08);margin-top:4px}
+.suggestion-item{padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:15px;transition:background .1s}
+.suggestion-item:hover{background:var(--accent-light)}
+.select-wrap{position:relative}
+.select-wrap::after{content:'▾';position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:14px}
+.select-wrap select{padding-right:36px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.show{opacity:1;pointer-events:all}
+.modal-sheet{background:var(--surface);border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;max-width:390px;transform:translateY(40px);transition:transform .25s ease;max-height:88vh;overflow-y:auto}
+.modal-overlay.show .modal-sheet{transform:translateY(0)}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:10px}
+.modal-body{font-size:15px;color:var(--muted);line-height:1.5;margin-bottom:20px}
+.modal-btns{display:flex;flex-direction:column;gap:10px}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 16px}
+
+/* REFUND SCREEN */
+.refund-output{margin:0 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text);max-height:300px;overflow-y:auto}
+.refund-tabs{display:flex;gap:8px;padding:0 20px 12px}
+.rtab{flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--muted)}
+.rtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.disclaimer{margin:12px 20px 0;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-sm);padding:12px;font-size:12px;color:#92400E;line-height:1.5}
+
+/* CANCEL ASSIST */
+.cancel-steps{margin:0 20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.cancel-step{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.cancel-step:last-child{border-bottom:none}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-text{font-size:14px}
+.cancel-info-banner{margin:0 20px 16px;padding:14px 16px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--radius-sm);font-size:13px;color:#92400E;line-height:1.5}
+.cancel-info-banner strong{display:block;margin-bottom:4px;font-size:14px}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#1A1A1A;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;z-index:300;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* STATUS CHIPS */
+.status-chip{font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;display:inline-block}
+.chip-active{background:var(--success-light);color:var(--success)}
+.chip-trial{background:var(--trial-light);color:var(--trial)}
+.chip-paused{background:var(--paused-light);color:var(--paused)}
+.chip-cancelled{background:var(--cancelled-light);color:var(--cancelled)}
+.chip-expiring{background:#FEF3C7;color:#D97706}
+.chip-expired{background:var(--danger-light);color:var(--danger)}
+
+/* CANCELLATION CONFIRM STRIP */
+.confirm-strip{margin:0 20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px}
+.confirm-strip p{font-size:14px;margin-bottom:10px}
+.confirm-strip-btns{display:flex;gap:8px}
+.confirm-strip-btns button{flex:1;padding:10px;border-radius:var(--radius-sm);border:none;font-size:14px;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- DASHBOARD -->
+<div class="screen active" id="screen-dashboard">
+  <div class="header">
+    <div class="header-row">
+      <div><h1>SubTracker <span id="plan-badge"></span></h1><p id="dash-subtitle">Your subscriptions</p></div>
+      <button class="back-btn" onclick="showScreen('screen-settings')" style="color:var(--muted)">⚙️</button>
+    </div>
+  </div>
+  <div class="summary-strip">
+    <div class="summary-card"><div class="val" id="sum-monthly">€0</div><div class="lbl">Monthly</div></div>
+    <div class="summary-card"><div class="val" id="sum-active">0</div><div class="lbl">Active</div></div>
+    <div class="summary-card"><div class="val" id="sum-expiring">0</div><div class="lbl">Expiring</div></div>
+    <div class="summary-card"><div class="val" id="sum-yearly">€0</div><div class="lbl">Yearly</div></div>
+  </div>
+  <div class="insights" id="insights-strip"></div>
+  <div id="premium-banner-wrap"></div>
+  <div class="sub-list" id="sub-list"></div>
+  <button class="fab" onclick="showAdd()">+</button>
+</div>
+
+<!-- DETAIL -->
+<div class="screen" id="screen-detail">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" onclick="showDash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back
+      </button>
+      <button class="back-btn" onclick="showEdit(currentId)">Edit ✎</button>
+    </div>
+  </div>
+  <div class="detail-hero" id="detail-hero"></div>
+  <div class="detail-rows" id="detail-rows"></div>
+  <div id="cancel-steps-wrap"></div>
+  <div id="cancel-confirm-wrap"></div>
+  <div id="cancelled-notice-wrap"></div>
+  <div id="cancel-info-wrap"></div>
+  <div class="action-btns" id="action-btns"></div>
+</div>
+
+<!-- ADD/EDIT -->
+<div class="screen" id="screen-add">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" onclick="showDash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back
+      </button>
+      <h1 style="font-size:20px" id="form-title">Add Subscription</h1>
+      <div style="width:50px"></div>
+    </div>
+  </div>
+  <div class="form-wrap">
+    <div class="field">
+      <label>Service Name</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="f-name" placeholder="e.g. Netflix" autocomplete="off" oninput="onNameInput()"/>
+        <div class="suggestions" id="suggestions" style="display:none"></div>
+      </div>
+    </div>
+    <div class="field"><label>Cost (€)</label><input type="number" id="f-price" placeholder="e.g. 15.99" step="0.01" min="0"/></div>
+    <div class="field"><label>Billing Cycle</label><div class="select-wrap"><select id="f-cycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="weekly">Weekly</option><option value="quarterly">Quarterly</option></select></div></div>
+    <div class="field"><label>Status</label><div class="select-wrap"><select id="f-status"><option value="active">Active</option><option value="trial">Free Trial</option><option value="paused">Paused</option><option value="cancelled">Cancelled</option></select></div></div>
+    <div class="field"><label>Next Charge Date</label><input type="date" id="f-date"/></div>
+    <div class="field"><label>Icon</label><div class="emoji-picker" id="emoji-picker"></div></div>
+    <div class="field"><label>Color</label><div class="color-picker" id="color-picker"></div></div>
+    <button class="btn btn-primary" id="form-submit-btn" onclick="submitForm()">Add Subscription</button>
+    <button class="btn btn-delete" id="form-delete-btn" style="display:none" onclick="confirmDelete()">🗑 Delete Subscription</button>
+    <div style="height:10px"></div>
+  </div>
+</div>
+
+<!-- REFUND SCREEN -->
+<div class="screen" id="screen-refund">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" onclick="showDash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back
+      </button>
+      <h1 style="font-size:20px">Refund Assistant</h1>
+      <div style="width:50px"></div>
+    </div>
+  </div>
+  <div class="form-wrap" style="margin-bottom:16px">
+    <div class="field"><label>Service Name</label><input type="text" id="r-service" placeholder="e.g. Netflix"/></div>
+    <div class="field"><label>Amount Charged (€)</label><input type="number" id="r-amount" placeholder="e.g. 15.99" step="0.01"/></div>
+    <div class="field"><label>Charge Date</label><input type="date" id="r-date"/></div>
+    <div class="field"><label>Your Name</label><input type="text" id="r-name" placeholder="Full name"/></div>
+    <div class="field"><label>Reason</label><div class="select-wrap"><select id="r-reason"><option value="forgot">Forgot to cancel</option><option value="unaware">Didn't know it was renewing</option><option value="notused">Didn't use the service</option><option value="technical">Technical issue prevented cancellation</option><option value="other">Other</option></select></div></div>
+    <div class="field"><label>Additional Note (optional)</label><textarea id="r-note" placeholder="Any extra details..."></textarea></div>
+    <button class="btn btn-primary" onclick="generateRefund()">Generate Refund Letters</button>
+  </div>
+  <div id="refund-output-wrap" style="display:none">
+    <div class="refund-tabs">
+      <button class="rtab active" onclick="switchRefundTab('provider')">To Provider</button>
+      <button class="rtab" onclick="switchRefundTab('bank')">Bank Dispute</button>
+    </div>
+    <div class="refund-output" id="refund-output"></div>
+    <div class="disclaimer">⚖️ <strong>EU Consumer Rights Note:</strong> Under EU Directive 2011/83/EU, consumers generally have a 14-day withdrawal right for digital services, but this typically does not apply once the service has begun with your explicit consent. Auto-renewal rules (under the Unfair Commercial Practices Directive) may support complaints if renewal terms were not clearly disclosed. Refunds are not guaranteed — this letter helps you make a polite, informed request. Always check the service's own refund policy first.</div>
+    <div style="display:flex;gap:10px;padding:12px 20px 0">
+      <button class="btn btn-secondary" style="font-size:14px" onclick="copyRefund()">📋 Copy</button>
+      <button class="btn btn-secondary" style="font-size:14px" onclick="downloadRefund()">⬇️ Download .txt</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="screen-settings">
+  <div class="header">
+    <div class="header-row">
+      <button class="back-btn" onclick="showDash()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>Back
+      </button>
+      <h1 style="font-size:20px">Settings</h1>
+      <div style="width:50px"></div>
+    </div>
+  </div>
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:12px">
+    <div class="detail-row" style="cursor:pointer" onclick="showScreen('screen-refund')">
+      <span class="lbl">📄 Refund Assistant</span><span style="color:var(--accent);font-size:14px">Open →</span>
+    </div>
+    <div class="detail-row" id="plan-row">
+      <span class="lbl">⭐ Plan</span><span class="val" id="plan-label">Free</span>
+    </div>
+    <div class="detail-row" style="cursor:pointer" onclick="showUpgradeModal()">
+      <span class="lbl">🚀 Upgrade to Premium</span><span style="color:var(--premium);font-size:14px">€0.50/mo →</span>
+    </div>
+    <div class="detail-row" style="cursor:pointer" onclick="exportData()">
+      <span class="lbl">📤 Export Data</span><span style="color:var(--accent);font-size:14px">JSON →</span>
+    </div>
+    <div class="detail-row" style="cursor:pointer" onclick="confirmClearData()">
+      <span class="lbl">🗑 Clear All Data</span><span style="color:var(--danger);font-size:14px">Reset →</span>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-btns" id="modal-btns"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const EMOJIS=['📺','🎵','☁️','🎮','📰','💼','🛡️','📚','🎨','🏋️','✉️','🔐','🌐','🎬','📦','🎤','🧘','🏠','🚗','💊'];
+const COLORS=['#4F46E5','#EC4899','#10B981','#F59E0B','#3B82F6','#8B5CF6','#EF4444','#14B8A6','#F97316','#6366F1'];
+const CYCLE_LABEL={monthly:'/mo',yearly:'/yr',weekly:'/wk',quarterly:'/qtr'};
+const CYCLE_DAYS={monthly:30,yearly:365,weekly:7,quarterly:90};
+const FREE_LIMIT=4;
+
+const KNOWN_SERVICES=[
+  {name:'Netflix',emoji:'📺',color:'#EF4444',cancelUrl:'https://www.netflix.com/cancelplan',price:15.99,cycle:'monthly',cancelSteps:['Go to Account','Click Membership & Billing','Click Cancel Membership','Confirm cancellation']},
+  {name:'Spotify',emoji:'🎵',color:'#10B981',cancelUrl:'https://www.spotify.com/account/subscription',price:9.99,cycle:'monthly',cancelSteps:['Go to Account overview','Click Change plan','Scroll to Cancel Premium','Follow confirmation steps']},
+  {name:'Disney+',emoji:'🎬',color:'#4F46E5',cancelUrl:'https://www.disneyplus.com/account',price:10.99,cycle:'monthly',cancelSteps:['Go to Account','Click Subscription','Click Cancel Subscription']},
+  {name:'Apple TV+',emoji:'🍎',color:'#1A1A1A',cancelUrl:'https://support.apple.com/en-us/HT202039',price:9.99,cycle:'monthly',cancelSteps:['Open Settings','Tap your name → Subscriptions','Tap Apple TV+','Tap Cancel Subscription']},
+  {name:'HBO Max',emoji:'🎥',color:'#6366F1',cancelUrl:'https://www.max.com/account/subscription',price:15.99,cycle:'monthly',cancelSteps:['Go to Account','Click Subscription','Click Cancel Plan']},
+  {name:'Amazon Prime',emoji:'📦',color:'#F59E0B',cancelUrl:'https://www.amazon.com/mc/manage',price:14.99,cycle:'monthly',cancelSteps:['Go to Account & Lists','Click Prime Membership','Click End Membership']},
+  {name:'YouTube Premium',emoji:'▶️',color:'#EF4444',cancelUrl:'https://myaccount.google.com/payments-and-subscriptions',price:13.99,cycle:'monthly',cancelSteps:['Go to Payments & subscriptions','Click Manage subscriptions','Click YouTube Premium → Cancel']},
+  {name:'Hulu',emoji:'💚',color:'#10B981',cancelUrl:'https://secure.hulu.com/account/cancel',price:7.99,cycle:'monthly',cancelSteps:['Go to Account','Click Cancel','Follow cancellation steps']},
+  {name:'Figma',emoji:'🎨',color:'#8B5CF6',cancelUrl:'https://www.figma.com/settings',price:12.00,cycle:'monthly',cancelSteps:['Go to Settings','Click Billing','Click Cancel plan']},
+  {name:'Adobe CC',emoji:'🖌️',color:'#EC4899',cancelUrl:'https://account.adobe.com/plans',price:54.99,cycle:'monthly',cancelSteps:['Go to Account → Plans','Click Manage plan','Click Cancel plan','Follow steps (early cancellation fee may apply)']},
+  {name:'GitHub',emoji:'🐙',color:'#1A1A1A',cancelUrl:'https://github.com/settings/billing',price:4.00,cycle:'monthly',cancelSteps:['Go to Settings → Billing','Click Downgrade to Free']},
+  {name:'Notion',emoji:'📝',color:'#1A1A1A',cancelUrl:'https://www.notion.so/profile/billing',price:10.00,cycle:'monthly',cancelSteps:['Go to Settings & Members','Click Billing','Click Cancel plan']},
+  {name:'Dropbox',emoji:'☁️',color:'#3B82F6',cancelUrl:'https://www.dropbox.com/account/billing',price:11.99,cycle:'monthly',cancelSteps:['Go to Account','Click Billing','Click Cancel plan']},
+  {name:'iCloud',emoji:'☁️',color:'#3B82F6',cancelUrl:'https://support.apple.com/en-us/HT207512',price:0.99,cycle:'monthly',cancelSteps:['Open Settings','Tap your name','Tap iCloud → Manage Storage','Tap Change Storage Plan → Downgrade']},
+  {name:'Xbox Game Pass',emoji:'🎮',color:'#10B981',cancelUrl:'https://account.microsoft.com/services',price:14.99,cycle:'monthly',cancelSteps:['Go to account.microsoft.com/services','Click Xbox Game Pass','Click Cancel']},
+  {name:'PlayStation Plus',emoji:'🎮',color:'#3B82F6',cancelUrl:'https://www.playstation.com/en-us/playstation-plus/cancel/',price:17.99,cycle:'monthly',cancelSteps:['Go to PlayStation Store','Account → Subscription','Turn off Auto-Renew']},
+  {name:'Duolingo',emoji:'🦉',color:'#10B981',cancelUrl:'https://www.duolingo.com/settings/subscription',price:6.99,cycle:'monthly',cancelSteps:['Go to Settings','Click Super Duolingo','Click Manage Subscription']},
+  {name:'ChatGPT Plus',emoji:'🤖',color:'#10B981',cancelUrl:'https://chat.openai.com/settings',price:20.00,cycle:'monthly',cancelSteps:['Go to Settings','Click My Plan','Click Manage Subscription','Click Cancel']},
+  {name:'Slack',emoji:'💬',color:'#8B5CF6',cancelUrl:'https://app.slack.com/account/settings',price:7.25,cycle:'monthly',cancelSteps:['Go to workspace settings','Click Billing','Click Downgrade to Free']},
+  {name:'Zoom',emoji:'📹',color:'#3B82F6',cancelUrl:'https://zoom.us/account/billing',price:14.99,cycle:'monthly',cancelSteps:['Go to Account Management → Billing','Click Cancel Subscription']},
+  {name:'NordVPN',emoji:'🛡️',color:'#4F46E5',cancelUrl:'https://my.nordaccount.com/subscriptions/',price:4.99,cycle:'monthly',cancelSteps:['Log in to nordaccount.com','Go to Subscriptions','Click Cancel auto-renewal']},
+  {name:'Headspace',emoji:'🧘',color:'#F59E0B',cancelUrl:'https://www.headspace.com/settings',price:12.99,cycle:'monthly',cancelSteps:['Go to Account Settings','Click Manage Subscription','Click Cancel']},
+  {name:'Calm',emoji:'🌊',color:'#3B82F6',cancelUrl:'https://www.calm.com/settings',price:14.99,cycle:'yearly',cancelSteps:['Go to Settings','Click Subscription','Click Manage or Cancel']},
+  {name:'LinkedIn Premium',emoji:'💼',color:'#3B82F6',cancelUrl:'https://www.linkedin.com/premium/manage',price:39.99,cycle:'monthly',cancelSteps:['Click Me → Premium subscription','Click Cancel subscription','Follow steps']},
+  {name:'Coursera',emoji:'📚',color:'#3B82F6',cancelUrl:'https://www.coursera.org/account-profile',price:59.00,cycle:'monthly',cancelSteps:['Go to My Purchases','Find your subscription','Click Cancel']},
+  {name:'1Password',emoji:'🔑',color:'#3B82F6',cancelUrl:'https://my.1password.com/settings/billing',price:2.99,cycle:'monthly',cancelSteps:['Go to 1password.com → Billing','Click Cancel subscription']},
+  {name:'Canva',emoji:'🖼️',color:'#8B5CF6',cancelUrl:'https://www.canva.com/settings/billing',price:12.99,cycle:'monthly',cancelSteps:['Go to Account Settings','Click Billing & Teams','Click Cancel plan']},
+  {name:'Grammarly',emoji:'✍️',color:'#10B981',cancelUrl:'https://account.grammarly.com/subscription',price:12.00,cycle:'monthly',cancelSteps:['Go to My Subscription','Click Manage Subscription','Click Cancel subscription']},
+  {name:'Medium',emoji:'📰',color:'#1A1A1A',cancelUrl:'https://medium.com/me/settings',price:5.00,cycle:'monthly',cancelSteps:['Go to Settings','Click Manage Membership','Click Cancel membership']},
+];
+
+let subs=[], currentId=null, editingId=null, formMode='add';
+let selEmoji=EMOJIS[0], selColor=COLORS[0];
+let refundMode='provider', refundLetters={provider:'',bank:''};
+let cancelPendingId=null;
+
+/* ---- STORAGE / INIT ---- */
+function getPlan(){return localStorage.getItem('subtracker_plan')||'free'}
+function setPlan(p){localStorage.setItem('subtracker_plan',p)}
+function loadSubs(){
+  const raw=localStorage.getItem('subtracker_v2');
+  if(raw){subs=JSON.parse(raw);return}
+  const d=n=>{const dt=new Date();dt.setDate(dt.getDate()+n);return dt.toISOString().split('T')[0]};
+  subs=[
+    {id:uid(),name:'Netflix',price:15.99,cycle:'monthly',nextDate:d(5),emoji:'📺',color:'#EF4444',status:'active'},
+    {id:uid(),name:'Spotify',price:9.99,cycle:'monthly',nextDate:d(23),emoji:'🎵',color:'#10B981',status:'active'},
+    {id:uid(),name:'Figma',price:12.00,cycle:'monthly',nextDate:d(47),emoji:'🎨',color:'#8B5CF6',status:'active'},
+    {id:uid(),name:'iCloud',price:0.99,cycle:'monthly',nextDate:d(12),emoji:'☁️',color:'#3B82F6',status:'active'},
+  ];
+  saveSubs();
+}
+function saveSubs(){localStorage.setItem('subtracker_v2',JSON.stringify(subs))}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+
+/* ---- HELPERS ---- */
+function daysUntil(ds){const n=new Date();n.setHours(0,0,0,0);const d=new Date(ds+'T00:00:00');d.setHours(0,0,0,0);return Math.round((d-n)/86400000)}
+function getStatusClass(sub){
+  if(sub.status==='cancelled') return 'cancelled';
+  if(sub.status==='trial') return 'trial';
+  if(sub.status==='paused') return 'paused';
+  const d=daysUntil(sub.nextDate);
+  if(d<0) return 'expired';
+  if(d<=7) return 'expiring';
+  return 'active';
+}
+function getBadge(sub){
+  const cls=getStatusClass(sub),d=daysUntil(sub.nextDate);
+  if(cls==='cancelled') return{t:'Cancelled',c:'badge-cancelled'};
+  if(cls==='trial') return{t:'Trial',c:'badge-trial'};
+  if(cls==='paused') return{t:'Paused',c:'badge-paused'};
+  if(cls==='expired') return{t:`${Math.abs(d)}d ago`,c:'badge-expired'};
+  if(cls==='expiring') return{t:d===0?'Today!':`${d}d`,c:'badge-expiring'};
+  return{t:`${d}d`,c:'badge-active'};
+}
+function fmtDate(ds){return new Date(ds+'T00:00:00').toLocaleDateString('en-GB',{month:'short',day:'numeric',year:'numeric'})}
+function monthlyEquiv(sub){
+  if(sub.cycle==='yearly') return sub.price/12;
+  if(sub.cycle==='weekly') return sub.price*4.33;
+  if(sub.cycle==='quarterly') return sub.price/3;
+  return sub.price;
+}
+function getService(name){return KNOWN_SERVICES.find(s=>s.name.toLowerCase()===name.toLowerCase())}
+function activeNonCancelled(){return subs.filter(s=>s.status!=='cancelled')}
+
+/* ---- DASHBOARD ---- */
+function renderDash(){
+  const plan=getPlan();
+  document.getElementById('plan-badge').innerHTML=plan==='premium'?`<span class="premium-badge">⭐ PRO</span>`:'';
+  document.getElementById('plan-label').textContent=plan==='premium'?'Premium ⭐':'Free';
+  const active=activeNonCancelled();
+  const expiring=active.filter(s=>{const d=daysUntil(s.nextDate);return d>=0&&d<=7});
+  const monthly=active.reduce((sum,s)=>sum+monthlyEquiv(s),0);
+  const yearly=monthly*12;
+  document.getElementById('sum-monthly').textContent='€'+monthly.toFixed(2);
+  document.getElementById('sum-active').textContent=active.length;
+  document.getElementById('sum-expiring').textContent=expiring.length;
+  document.getElementById('sum-yearly').textContent='€'+yearly.toFixed(0);
+  document.getElementById('dash-subtitle').textContent=`${subs.length} subscription${subs.length!==1?'s':''}`;
+  renderInsights(active,monthly,yearly);
+  renderPremiumBanner(plan,active);
+  renderList();
+}
+
+function renderInsights(active,monthly,yearly){
+  const strip=document.getElementById('insights-strip');
+  if(!active.length){strip.innerHTML='';return}
+  const mostExpensive=active.reduce((a,b)=>monthlyEquiv(a)>monthlyEquiv(b)?a:b);
+  const forgotten=active.filter(s=>{const d=daysUntil(s.nextDate);return d<0});
+  const trend=monthly>0?`↗ €${(monthly*1.05).toFixed(2)} projected`:'No data yet';
+  strip.innerHTML=`
+    <div class="insight-card"><div class="i-label">Most expensive</div><div class="i-val">${mostExpensive.emoji} ${mostExpensive.name}</div><div class="i-sub">€${monthlyEquiv(mostExpensive).toFixed(2)}/mo</div></div>
+    <div class="insight-card"><div class="i-label">Yearly projection</div><div class="i-val">€${yearly.toFixed(0)}</div><div class="i-sub">${trend}</div></div>
+    <div class="insight-card"><div class="i-label">Overdue renewals</div><div class="i-val" style="color:${forgotten.length?'var(--danger)':'var(--success)'}">${forgotten.length}</div><div class="i-sub">${forgotten.length?'Need attention':'All good!'}</div></div>
+  `;
+}
+
+function renderPremiumBanner(plan,active){
+  const wrap=document.getElementById('premium-banner-wrap');
+  if(plan==='premium'||active.length<FREE_LIMIT){wrap.innerHTML='';return}
+  wrap.innerHTML=`<div class="premium-banner" onclick="showUpgradeModal()">
+    <div><div class="pb-text">Free limit reached (${active.length}/${FREE_LIMIT})</div><div class="pb-sub">Upgrade for unlimited tracking</div></div>
+    <button class="pb-btn">€0.50/mo</button>
+  </div>`;
+}
+
+function renderList(){
+  const list=document.getElementById('sub-list');
+  list.innerHTML='';
+  if(!subs.length){list.innerHTML=`<div class="empty"><div class="emoji">📭</div><p>No subscriptions yet.<br>Tap + to add your first.</p></div>`;return}
+  const order={expiring:0,expired:1,active:2,trial:3,paused:4,cancelled:5};
+  const sorted=[...subs].sort((a,b)=>{
+    const oa=order[getStatusClass(a)],ob=order[getStatusClass(b)];
+    return oa!==ob?oa-ob:daysUntil(a.nextDate)-daysUntil(b.nextDate);
+  });
+  const urgent=sorted.filter(s=>['expiring','expired'].includes(getStatusClass(s)));
+  const rest=sorted.filter(s=>!['expiring','expired'].includes(getStatusClass(s)));
+  if(urgent.length){
+    const l=document.createElement('div');l.className='section-label';l.textContent='⚡ Needs attention';list.appendChild(l);
+    urgent.forEach(s=>list.appendChild(makeCard(s)));
+    if(rest.length){const sp=document.createElement('div');sp.style.marginTop='8px';list.appendChild(sp);const l2=document.createElement('div');l2.className='section-label';l2.textContent='All subscriptions';list.appendChild(l2)}
+  }
+  rest.forEach(s=>list.appendChild(makeCard(s)));
+}
+
+function makeCard(sub){
+  const badge=getBadge(sub),cls=getStatusClass(sub);
+  const div=document.createElement('div');
+  div.className=`sub-card ${cls}`;div.onclick=()=>showDetail(sub.id);
+  div.innerHTML=`
+    <div class="sub-icon" style="background:${sub.color}22">${sub.emoji}</div>
+    <div class="sub-info"><div class="sub-name">${sub.name}</div><div class="sub-price">€${sub.price.toFixed(2)}${CYCLE_LABEL[sub.cycle||'monthly']}</div></div>
+    <div class="sub-right"><span class="days-badge ${badge.c}">${badge.t}</span><div class="sub-status">${cls==='cancelled'?'Cancelled':cls==='expired'?'Overdue':cls==='trial'?'Trial period':cls==='paused'?'Paused':'until renewal'}</div></div>`;
+  return div;
+}
+
+/* ---- DETAIL ---- */
+function showDetail(id){
+  currentId=id;cancelPendingId=null;
+  const sub=subs.find(s=>s.id===id);
+  const cls=getStatusClass(sub),days=daysUntil(sub.nextDate);
+  const cycleDays=CYCLE_DAYS[sub.cycle||'monthly'];
+  const progress=cls==='cancelled'||cls==='paused'?0:Math.max(0,Math.min(1,days/cycleDays));
+  const offset=(2*Math.PI*38)*(1-progress);
+  const ringColor=cls==='expiring'||cls==='expired'?'#F59E0B':cls==='cancelled'||cls==='paused'?'#9CA3AF':cls==='trial'?'#8B5CF6':'#4F46E5';
+  const dayLabel=cls==='cancelled'||cls==='paused'?'—':cls==='expired'?Math.abs(days):days;
+  const unitLabel=cls==='cancelled'?'':cls==='paused'?'paused':cls==='expired'?'days ago':'days left';
+  document.getElementById('detail-hero').innerHTML=`
+    <div class="detail-icon" style="background:${sub.color}22">${sub.emoji}</div>
+    <div class="detail-name">${sub.name}</div>
+    <div class="detail-price">€${sub.price.toFixed(2)}${CYCLE_LABEL[sub.cycle||'monthly']}</div>
+    <div class="countdown-ring">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle class="ring-bg" cx="50" cy="50" r="38"/>
+        <circle class="ring-fill" cx="50" cy="50" r="38" stroke="${ringColor}" stroke-dasharray="${(2*Math.PI*38).toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
+      </svg>
+      <div class="countdown-label"><span class="num">${dayLabel}</span><span class="unit">${unitLabel}</span></div>
+    </div>`;
+  const annual=(sub.cycle==='yearly'?sub.price:monthlyEquiv(sub)*12).toFixed(2);
+  document.getElementById('detail-rows').innerHTML=`
+    <div class="detail-row"><span class="lbl">Next Charge</span><span class="val">${fmtDate(sub.nextDate)}</span></div>
+    <div class="detail-row"><span class="lbl">Billing Cycle</span><span class="val">${(sub.cycle||'monthly').charAt(0).toUpperCase()+(sub.cycle||'monthly').slice(1)}</span></div>
+    <div class="detail-row"><span class="lbl">Annual Cost</span><span class="val">~€${annual}</span></div>
+    <div class="detail-row"><span class="lbl">Status</span><span class="val"><span class="status-chip chip-${cls}">${cls.charAt(0).toUpperCase()+cls.slice(1)}</span></span></div>`;
+
+  // Cancel steps for known services
+  const svc=getService(sub.name);
+  document.getElementById('cancel-steps-wrap').innerHTML='';
+  document.getElementById('cancel-confirm-wrap').innerHTML='';
+  document.getElementById('cancelled-notice-wrap').innerHTML=cls==='cancelled'?`<div style="margin:0 20px 12px;background:var(--cancelled-light);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;color:var(--cancelled);text-align:center">This subscription is cancelled.</div>`:'';
+  document.getElementById('cancel-info-wrap').innerHTML='';
+  if(cls!=='cancelled'&&svc){
+    document.getElementById('cancel-info-wrap').innerHTML=`<div class="cancel-info-banner"><strong>ℹ️ How to cancel ${sub.name}</strong>Tap "Cancel Subscription" below to open their official cancellation page. We'll guide you through it step by step.</div>`;
+  }
+
+  const btns=document.getElementById('action-btns');
+  if(cls==='cancelled'){
+    btns.innerHTML=`<button class="btn btn-success" onclick="renewSub()">↺ Reactivate Subscription</button>
+      <button class="btn btn-primary" style="background:none;border:1px solid var(--border);color:var(--text)" onclick="showRefundFromDetail()">📄 Request Refund</button>
+      <button class="btn btn-delete" onclick="confirmDelete()">🗑 Remove from Tracker</button>`;
+  } else {
+    btns.innerHTML=`<button class="btn btn-primary" onclick="renewSub()">✓ Mark as Renewed</button>
+      <button class="btn btn-cancel" onclick="initCancel()">✕ Cancel Subscription</button>`;
+  }
+  showScreen('screen-detail');
+}
+
+function renewSub(){
+  const sub=subs.find(s=>s.id===currentId);
+  const d=CYCLE_DAYS[sub.cycle||'monthly'];
+  const next=new Date();next.setDate(next.getDate()+d);
+  sub.nextDate=next.toISOString().split('T')[0];
+  sub.status='active';
+  saveSubs();renderDash();showDetail(currentId);toast('✓ Renewed!');
+}
+
+function initCancel(){
+  const sub=subs.find(s=>s.id===currentId);
+  const svc=getService(sub.name);
+  if(svc&&svc.cancelSteps){
+    // Show cancel steps inline
+    const stepsHtml=svc.cancelSteps.map((s,i)=>`<div class="cancel-step"><div class="step-num">${i+1}</div><div class="step-text">${s}</div></div>`).join('');
+    document.getElementById('cancel-steps-wrap').innerHTML=`<div style="margin:0 20px 12px"><p style="font-size:13px;color:var(--muted);margin-bottom:8px">Steps to cancel on ${sub.name}:</p><div class="cancel-steps">${stepsHtml}</div></div>`;
+    document.getElementById('cancel-confirm-wrap').innerHTML=`<div class="confirm-strip"><p>After cancelling on their website, confirm below:</p><div class="confirm-strip-btns"><button style="background:var(--danger-light);color:var(--danger)" onclick="openCancelAndConfirm('${svc.cancelUrl}')">Open & Cancel →</button><button style="background:var(--success-light);color:var(--success)" onclick="doCancel()">I've already cancelled ✓</button></div></div>`;
+  } else {
+    showModal('Cancel Subscription',
+      `To cancel this subscription, visit the service's website and cancel from your account settings. Once done, confirm below.`,
+      [{label:"Yes, I've cancelled it",cls:'btn-cancel',action:()=>{doCancel();closeModal()}},{label:'Not now',cls:'btn-ghost',action:closeModal}]);
+  }
+}
+
+function openCancelAndConfirm(url){
+  window.open(url,'_blank');
+  // Schedule reminder to confirm
+  setTimeout(()=>{
+    showModal('Did you cancel?','Confirm once you\'ve completed cancellation on their website.',
+      [{label:'Yes, cancelled ✓',cls:'btn-cancel',action:()=>{doCancel();closeModal()}},{label:'Not yet — remind me tomorrow',cls:'btn-ghost',action:()=>{toast('Reminder set for tomorrow');closeModal()}}]);
+  },3000);
+}
+
+function doCancel(){
+  const sub=subs.find(s=>s.id===currentId);
+  sub.status='cancelled';
+  sub.cancelledDate=new Date().toISOString().split('T')[0];
+  saveSubs();renderDash();showDetail(currentId);
+  document.getElementById('cancel-steps-wrap').innerHTML='';
+  document.getElementById('cancel-confirm-wrap').innerHTML='';
+  toast(`${sub.name} marked as cancelled.`);
+}
+
+/* ---- FREEMIUM GATE ---- */
+function showUpgradeModal(){
+  const active=activeNonCancelled().length;
+  showModal('⭐ Upgrade to Premium',
+    `You're currently on the Free plan (${active}/${FREE_LIMIT} subscriptions tracked).\n\nPremium unlocks:\n• Unlimited subscription tracking\n• Refund assistance letters\n• Smarter renewal notifications\n• Easier cancellation guidance\n\nAll for just €0.50/month.`,
+    [{label:'Upgrade for €0.50/month — Simulate ✓',cls:'btn-premium',action:()=>{setPlan('premium');renderDash();closeModal();toast('⭐ Welcome to Premium!')}},{label:'Maybe later',cls:'btn-ghost',action:closeModal}]);
+}
+
+function checkFreemiumGate(){
+  if(getPlan()==='premium') return true;
+  const active=activeNonCancelled().filter(s=>s.status==='active'||s.status==='trial').length;
+  if(active>=FREE_LIMIT){showUpgradeModal();return false}
+  return true;
+}
+
+/* ---- ADD / EDIT ---- */
+function showAdd(){
+  if(!checkFreemiumGate()) return;
+  formMode='add';editingId=null;
+  document.getElementById('form-title').textContent='Add Subscription';
+  document.getElementById('form-submit-btn').textContent='Add Subscription';
+  document.getElementById('form-delete-btn').style.display='none';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-price').value='';
+  document.getElementById('f-cycle').value='monthly';
+  document.getElementById('f-status').value='active';
+  const t=new Date();t.setDate(t.getDate()+30);
+  document.getElementById('f-date').value=t.toISOString().split('T')[0];
+  selEmoji=EMOJIS[0];selColor=COLORS[0];
+  renderEmojiPicker();renderColorPicker();hideSuggestions();
+  showScreen('screen-add');
+}
+
+function showEdit(id){
+  formMode='edit';editingId=id;
+  const sub=subs.find(s=>s.id===id);
+  document.getElementById('form-title').textContent='Edit Subscription';
+  document.getElementById('form-submit-btn').textContent='Save Changes';
+  document.getElementById('form-delete-btn').style.display='block';
+  document.getElementById('f-name').value=sub.name;
+  document.getElementById('f-price').value=sub.price;
+  document.getElementById('f-cycle').value=sub.cycle||'monthly';
+  document.getElementById('f-status').value=sub.status||'active';
+  document.getElementById('f-date').value=sub.nextDate;
+  selEmoji=sub.emoji;selColor=sub.color;
+  renderEmojiPicker();renderColorPicker();hideSuggestions();
+  showScreen('screen-add');
+}
+
+function submitForm(){
+  const name=document.getElementById('f-name').value.trim();
+  const price=parseFloat(document.getElementById('f-price').value);
+  const cycle=document.getElementById('f-cycle').value;
+  const status=document.getElementById('f-status').value;
+  const date=document.getElementById('f-date').value;
+  if(!name){toast('Please enter a name.');return}
+  if(isNaN(price)||price<0){toast('Enter a valid price.');return}
+  if(!date){toast('Pick a charge date.');return}
+  if(formMode==='add'){
+    subs.push({id:uid(),name,price,cycle,nextDate:date,emoji:selEmoji,color:selColor,status});
+    toast(`${name} added!`);
+  } else {
+    Object.assign(subs.find(s=>s.id===editingId),{name,price,cycle,nextDate:date,emoji:selEmoji,color:selColor,status});
+    toast(`${name} updated!`);
+  }
+  saveSubs();renderDash();showDash();
+}
+
+/* ---- AUTOCOMPLETE ---- */
+function onNameInput(){
+  const val=document.getElementById('f-name').value.trim().toLowerCase();
+  const box=document.getElementById('suggestions');
+  if(!val){hideSuggestions();return}
+  const matches=KNOWN_SERVICES.filter(s=>s.name.toLowerCase().includes(val)).slice(0,5);
+  if(!matches.length){hideSuggestions();return}
+  box.style.display='block';
+  box.innerHTML=matches.map(s=>`<div class="suggestion-item" onclick="applySuggestion('${s.name}')">${s.emoji} ${s.name}</div>`).join('');
+}
+function applySuggestion(name){
+  const svc=KNOWN_SERVICES.find(s=>s.name===name);
+  document.getElementById('f-name').value=name;
+  document.getElementById('f-price').value=svc.price;
+  document.getElementById('f-cycle').value=svc.cycle;
+  selEmoji=svc.emoji;selColor=svc.color;
+  renderEmojiPicker();renderColorPicker();hideSuggestions();
+}
+function hideSuggestions(){document.getElementById('suggestions').style.display='none'}
+document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap'))hideSuggestions()});
+
+/* ---- PICKERS ---- */
+function renderEmojiPicker(){
+  document.getElementById('emoji-picker').innerHTML=EMOJIS.map(e=>`<button class="emoji-opt${e===selEmoji?' selected':''}" onclick="selEmoji='${e}';renderEmojiPicker()">${e}</button>`).join('');
+}
+function renderColorPicker(){
+  document.getElementById('color-picker').innerHTML=COLORS.map(c=>`<div class="color-opt${c===selColor?' selected':''}" style="background:${c}" onclick="selColor='${c}';renderColorPicker()"></div>`).join('');
+}
+
+/* ---- REFUND ---- */
+function showRefundFromDetail(){
+  const sub=subs.find(s=>s.id===currentId);
+  document.getElementById('r-service').value=sub.name;
+  document.getElementById('r-amount').value=sub.price;
+  document.getElementById('r-date').value=sub.cancelledDate||new Date().toISOString().split('T')[0];
+  document.getElementById('refund-output-wrap').style.display='none';
+  showScreen('screen-refund');
+}
+
+const REASONS={
+  forgot:'I unfortunately forgot to cancel before the renewal date.',
+  unaware:'I was not clearly informed that my subscription would automatically renew.',
+  notused:'I have not used the service during the billing period.',
+  technical:'A technical issue prevented me from cancelling the subscription in time.',
+  other:'I am requesting a refund for the above charge.'
+};
+
+function generateRefund(){
+  const service=document.getElementById('r-service').value.trim()||'[Service Name]';
+  const amount=parseFloat(document.getElementById('r-amount').value)||0;
+  const date=document.getElementById('r-date').value||new Date().toISOString().split('T')[0];
+  const name=document.getElementById('r-name').value.trim()||'[Your Name]';
+  const reason=document.getElementById('r-reason').value;
+  const note=document.getElementById('r-note').value.trim();
+  const fmtd=fmtDate(date);
+  const reasonText=REASONS[reason];
+
+  refundLetters.provider=`Subject: Refund Request — Unintended Subscription Renewal
+
+To the Customer Support Team at ${service},
+
+My name is ${name}. I am writing to respectfully request a refund for a subscription charge of €${amount.toFixed(2)} that was applied to my account on ${fmtd}.
+
+${reasonText}${note?'\n\n'+note:''}
+
+I kindly ask that you review my account and process a refund of €${amount.toFixed(2)} as a gesture of goodwill. I am a valued customer and I believe a refund is a fair resolution in this circumstance.
+
+Please let me know if you require any additional information to process this request.
+
+Thank you for your time and understanding.
+
+Kind regards,
+${name}
+
+---
+Note: Under EU consumer protection guidelines, auto-renewal terms must be clearly communicated. If this was not adequately disclosed, I may have grounds for a formal complaint with my national consumer authority.`;
+
+  refundLetters.bank=`Subject: Chargeback Request — Unauthorised/Disputed Subscription Charge
+
+To Whom It May Concern,
+
+I am writing to formally dispute a charge on my account.
+
+Merchant: ${service}
+Amount: €${amount.toFixed(2)}
+Date: ${fmtd}
+
+Reason for dispute: ${reasonText}${note?'\n\n'+note:''}
+
+I have contacted the merchant directly to request a refund (see separate communication). As the merchant has not resolved this to my satisfaction, I am requesting a chargeback under my rights as a cardholder.
+
+Under EU Directive 2011/83/EU and payment scheme rules, consumers may dispute charges where services were not delivered as agreed or where auto-renewal terms were not clearly disclosed prior to the charge.
+
+Please investigate this charge and initiate a chargeback of €${amount.toFixed(2)} to my account.
+
+I am prepared to provide any further documentation required.
+
+Yours faithfully,
+${name}`;
+
+  document.getElementById('refund-output-wrap').style.display='block';
+  switchRefundTab('provider');
+}
+
+function switchRefundTab(mode){
+  refundMode=mode;
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.toggle('active',t.textContent.toLowerCase().includes(mode==='provider'?'provider':'bank')));
+  document.getElementById('refund-output').textContent=refundLetters[mode]||'Generate letters first.';
+}
+function copyRefund(){navigator.clipboard.writeText(document.getElementById('refund-output').textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed'))}
+function downloadRefund(){
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(document.getElementById('refund-output').textContent);
+  a.download=`refund-${refundMode}-${Date.now()}.txt`;a.click();toast('Downloaded!')}
+
+/* ---- DELETE / CONFIRM ---- */
+function confirmDelete(){
+  const id=formMode==='edit'?editingId:currentId;
+  const sub=subs.find(s=>s.id===id);
+  showModal(`Delete ${sub.name}?`,`This will permanently remove "${sub.name}" from your tracker.`,
+    [{label:'Delete',cls:'btn-delete',action:()=>{subs=subs.filter(s=>s.id!==id);saveSubs();closeModal();showDash();toast(`${sub.name} deleted.`)}},{label:'Keep it',cls:'btn-ghost',action:closeModal}]);
+}
+
+function exportData(){
+  const a=document.createElement('a');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify({plan:getPlan(),subs},null,2));
+  a.download='subtracker-export.json';a.click();toast('Exported!');
+}
+function confirmClearData(){
+  showModal('Clear all data?','This will delete all subscriptions and reset the app.',
+    [{label:'Yes, clear everything',cls:'btn-delete',action:()=>{localStorage.clear();subs=[];loadSubs();renderDash();closeModal();showDash();toast('Data cleared.')}},{label:'Cancel',cls:'btn-ghost',action:closeModal}]);
+}
+
+/* ---- MODAL ---- */
+function showModal(title,body,buttons){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=body.replace(/\n/g,'<br>');
+  document.getElementById('modal-btns').innerHTML=buttons.map((b,i)=>`<button class="btn ${b.cls}" id="mbtn-${i}">${b.label}</button>`).join('');
+  buttons.forEach((b,i)=>document.getElementById(`mbtn-${i}`).onclick=b.action);
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('show')}
+function closeModalOutside(e){if(e.target===document.getElementById('modal-overlay'))closeModal()}
+
+/* ---- NAV ---- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function showDash(){renderDash();showScreen('screen-dashboard')}
+
+/* ---- TOAST ---- */
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---- INIT ---- */
+loadSubs();renderDash();
+</script>
+</body>
+</html>
